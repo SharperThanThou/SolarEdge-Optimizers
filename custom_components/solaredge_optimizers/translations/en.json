@@ -1,0 +1,90 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to the SolarEdge monitoring portal",
+        "description": "Per-optimizer data is only available from the monitoring portal, so this uses the same login as monitoring.solaredge.com. The site ID is shown in the portal's site details.",
+        "data": {
+          "site_id": "Site ID",
+          "username": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate integration",
+        "description": "The SolarEdge portal rejected the password for {username}.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "no_optimizers": "The portal did not list any optimizers for this site.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This site is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Polling and health check",
+        "data": {
+          "scan_interval": "Polling interval",
+          "low_output_percent": "Low output threshold",
+          "min_peer_power": "Minimum peer power",
+          "consecutive_samples": "Consecutive bad samples",
+          "stale_after": "Not reporting after"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll the portal. The inverter uploads optimizer data about every 15 minutes.",
+          "low_output_percent": "An optimizer producing less than this share of its string's median power counts as low output.",
+          "min_peer_power": "Only compare optimizers when their peers' median power is at least this high, so dawn, dusk and heavy cloud are ignored.",
+          "consecutive_samples": "How many new samples in a row must be bad before a problem is reported. Filters out passing shadows.",
+          "stale_after": "Report an optimizer as not reporting when it has been silent this long while the rest of the site is producing."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "any_optimizer_problem": {
+        "name": "Optimizer problem"
+      }
+    },
+    "sensor": {
+      "module_voltage": {
+        "name": "Module voltage"
+      },
+      "optimizer_voltage": {
+        "name": "Optimizer voltage"
+      },
+      "last_measurement": {
+        "name": "Last measurement"
+      },
+      "health": {
+        "name": "Health",
+        "state": {
+          "ok": "OK",
+          "low_output": "Low output",
+          "no_output": "No output",
+          "not_reporting": "Not reporting",
+          "unknown": "Unknown"
+        }
+      },
+      "peer_ratio": {
+        "name": "Output vs peers"
+      },
+      "unhealthy_optimizers": {
+        "name": "Unhealthy optimizers"
+      },
+      "latest_measurement": {
+        "name": "Latest optimizer measurement"
+      }
+    }
+  }
+}

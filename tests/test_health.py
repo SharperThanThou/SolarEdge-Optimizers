@@ -187,3 +187,70 @@ def test_removed_optimizer_is_forgotten(now: datetime) -> None:
     )
     health = monitor.update(smaller, make_readings(now + SAMPLE), now + SAMPLE)
     assert BAD not in health
+
+
+def _dead(serial: str, when: datetime, optimizer_voltage: float) -> OptimizerReading:
+    """Return a reading like the ones a failed optimizer leaves behind."""
+    return OptimizerReading(
+        serial=serial,
+        power=0.0,
+        voltage=44.0,
+        optimizer_voltage=optimizer_voltage,
+        current=0.0,
+        last_measurement=when,
+    )
+
+
+def test_long_silence_is_flagged_at_night_after_restart(now: datetime) -> None:
+    # Evening, two hours after the last sample: nothing is fresh or producing.
+    last_sample = now - timedelta(hours=2)
+    readings = make_readings(last_sample, power=2.0)
+    readings[BAD] = _dead(BAD, now - timedelta(days=29), optimizer_voltage=25.0)
+    other = STRING_A[1]
+    readings[other] = _dead(other, now - timedelta(hours=20), optimizer_voltage=25.0)
+
+    health = HealthMonitor().update(make_layout(), readings, now)
+    assert health[BAD].status is HealthStatus.NOT_REPORTING
+    # Quiet for less than the long silence window: still waits for daylight.
+    assert health[other].status is HealthStatus.UNKNOWN
+    assert health[STRING_A[2]].status is HealthStatus.UNKNOWN
+
+
+def test_safe_mode_when_silent(now: datetime) -> None:
+    readings = make_readings(now - timedelta(hours=2), power=2.0)
+    readings[BAD] = _dead(BAD, now - timedelta(days=29), optimizer_voltage=1.0)
+    health = HealthMonitor().update(make_layout(), readings, now)
+    assert health[BAD].status is HealthStatus.SAFE_MODE
+    assert health[BAD].problem
+
+
+def test_safe_mode_while_site_produces(now: datetime) -> None:
+    layout = make_layout()
+    monitor = HealthMonitor()
+    for index in range(3):
+        when = now + index * SAMPLE
+        readings = make_readings(when)
+        readings[BAD] = _dead(BAD, when, optimizer_voltage=1.0)
+        monitor.update(layout, readings, when)
+    assert monitor.health[BAD].status is HealthStatus.SAFE_MODE
+
+
+def test_safe_mode_is_normal_at_night(now: datetime) -> None:
+    # Every optimizer sits at 1 V when the inverter is not producing.
+    readings = {
+        serial: _dead(serial, now, optimizer_voltage=1.0)
+        for serial in STRING_A + STRING_B
+    }
+    health = HealthMonitor().update(make_layout(), readings, now)
+    assert not any(h.problem for h in health.values())
+
+
+def test_zero_output_without_safe_mode_voltage_is_no_output(now: datetime) -> None:
+    layout = make_layout()
+    monitor = HealthMonitor()
+    for index in range(3):
+        when = now + index * SAMPLE
+        readings = make_readings(when)
+        readings[BAD] = _dead(BAD, when, optimizer_voltage=30.0)
+        monitor.update(layout, readings, when)
+    assert monitor.health[BAD].status is HealthStatus.NO_OUTPUT

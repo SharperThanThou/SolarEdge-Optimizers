@@ -21,6 +21,13 @@ from .api.models import OptimizerReading, SiteLayout
 # Output below this fraction of the peer median counts as no output at all.
 NO_OUTPUT_RATIO = 0.05
 
+# SolarEdge optimizers hold their output at about 1 V (SafeDC) until the
+# inverter tells them to produce. Output at or below this while the panel
+# itself has voltage, at a time the rest of the site is producing, means the
+# optimizer is stuck in that safety mode.
+SAFE_MODE_MAX_OUTPUT_VOLTAGE = 2.0
+SAFE_MODE_MIN_MODULE_VOLTAGE = 10.0
+
 
 class HealthStatus(StrEnum):
     """Health of a single optimizer."""
@@ -29,11 +36,17 @@ class HealthStatus(StrEnum):
     LOW_OUTPUT = "low_output"
     NO_OUTPUT = "no_output"
     NOT_REPORTING = "not_reporting"
+    SAFE_MODE = "safe_mode"
     UNKNOWN = "unknown"
 
 
 PROBLEM_STATUSES = frozenset(
-    {HealthStatus.LOW_OUTPUT, HealthStatus.NO_OUTPUT, HealthStatus.NOT_REPORTING}
+    {
+        HealthStatus.LOW_OUTPUT,
+        HealthStatus.NO_OUTPUT,
+        HealthStatus.NOT_REPORTING,
+        HealthStatus.SAFE_MODE,
+    }
 )
 
 
@@ -51,6 +64,10 @@ class HealthSettings:
     # How long an optimizer may go without reporting while the rest of the
     # site is producing before it is reported as not reporting.
     stale_after: timedelta = timedelta(hours=2)
+    # An optimizer whose last report is this much older than the site's
+    # newest report is not reporting, whatever the time of day. Catches
+    # long-dead optimizers right after a restart or at night.
+    long_silence: timedelta = timedelta(hours=24)
     # Fewer producing peers than this in a string falls back to the whole site.
     min_peers: int = 2
 
@@ -115,6 +132,15 @@ class HealthMonitor:
         elif self._producing_since is None:
             self._producing_since = now
 
+        newest = max(
+            (
+                reading.last_measurement
+                for serial, reading in readings.items()
+                if serial in layout.optimizers and reading.last_measurement is not None
+            ),
+            default=None,
+        )
+
         by_string: dict[str | None, list[str]] = {}
         for serial in fresh_power:
             by_string.setdefault(layout.optimizers[serial].string_id, []).append(serial)
@@ -125,7 +151,7 @@ class HealthMonitor:
 
             if serial not in fresh_power:
                 self._health[serial] = self._assess_missing(
-                    previous, reading, now, site_producing
+                    previous, reading, now, site_producing, newest
                 )
                 continue
 
@@ -137,19 +163,9 @@ class HealthMonitor:
             if optimizer.string_id is None or len(peers) < settings.min_peers:
                 peers = [peer for peer in fresh_power if peer != serial]
             peer_median = median(fresh_power[peer] for peer in peers) if peers else None
-            power = fresh_power[serial]
-
-            ratio: float | None = None
-            if peer_median is None or peer_median < settings.min_peer_power:
-                candidate = HealthStatus.UNKNOWN
-            else:
-                ratio = power / peer_median
-                if ratio < NO_OUTPUT_RATIO:
-                    candidate = HealthStatus.NO_OUTPUT
-                elif ratio < settings.low_output_ratio:
-                    candidate = HealthStatus.LOW_OUTPUT
-                else:
-                    candidate = HealthStatus.OK
+            candidate, ratio = self._classify(
+                readings[serial], fresh_power[serial], peer_median
+            )
 
             assessed = replace(
                 previous,
@@ -166,6 +182,21 @@ class HealthMonitor:
 
         return self.health
 
+    def _classify(
+        self, reading: OptimizerReading, power: float, peer_median: float | None
+    ) -> tuple[HealthStatus, float | None]:
+        """Classify one fresh sample against its peers' median power."""
+        if peer_median is None or peer_median < self.settings.min_peer_power:
+            return HealthStatus.UNKNOWN, None
+        ratio = power / peer_median
+        if ratio >= self.settings.low_output_ratio:
+            return HealthStatus.OK, ratio
+        if in_safe_mode(reading):
+            return HealthStatus.SAFE_MODE, ratio
+        if ratio < NO_OUTPUT_RATIO:
+            return HealthStatus.NO_OUTPUT, ratio
+        return HealthStatus.LOW_OUTPUT, ratio
+
     def _is_fresh(self, reading: OptimizerReading, now: datetime) -> bool:
         """Return True if the reading is recent enough to compare."""
         return (
@@ -179,31 +210,53 @@ class HealthMonitor:
         reading: OptimizerReading | None,
         now: datetime,
         site_producing: bool,
+        newest: datetime | None,
     ) -> OptimizerHealth:
         """Assess an optimizer that has no recent reading."""
         cleared = replace(previous, peer_median=None, peer_count=0, ratio=None)
+        if not self._is_silent(reading, now, site_producing, newest):
+            return cleared
+
+        # Both silence checks are debounced by their time windows already, so
+        # confirm at once. If the last thing it reported was the 1 V safety
+        # output, say so: that points at the optimizer rather than its link.
+        status = (
+            HealthStatus.SAFE_MODE
+            if reading is not None and in_safe_mode(reading)
+            else HealthStatus.NOT_REPORTING
+        )
+        streak = cleared.streak + 1 if cleared.candidate is status else 1
+        return replace(cleared, status=status, candidate=status, streak=streak)
+
+    def _is_silent(
+        self,
+        reading: OptimizerReading | None,
+        now: datetime,
+        site_producing: bool,
+        newest: datetime | None,
+    ) -> bool:
+        """Return True if an optimizer has been quiet for too long."""
+        last_measurement = reading.last_measurement if reading else None
+        if (
+            last_measurement is not None
+            and newest is not None
+            and newest - last_measurement > self.settings.long_silence
+        ):
+            # The rest of the site kept reporting long after this one stopped.
+            # Comparing with the newest report rather than the clock keeps a
+            # whole-site outage from flagging every optimizer.
+            return True
+
         if not site_producing or self._producing_since is None:
             # Night, or the whole site is down: not this optimizer's fault.
-            return cleared
+            return False
 
         # Measure silence from when the site started producing, so optimizers
         # that last reported yesterday evening are not flagged at sunrise.
         last_seen = self._producing_since
-        if reading is not None and reading.last_measurement is not None:
-            last_seen = max(last_seen, reading.last_measurement)
-        if now - last_seen <= self.settings.stale_after:
-            return cleared
-
-        # The stale_after window already debounces this, so confirm at once.
-        streak = (
-            cleared.streak + 1 if cleared.candidate is HealthStatus.NOT_REPORTING else 1
-        )
-        return replace(
-            cleared,
-            status=HealthStatus.NOT_REPORTING,
-            candidate=HealthStatus.NOT_REPORTING,
-            streak=streak,
-        )
+        if last_measurement is not None:
+            last_seen = max(last_seen, last_measurement)
+        return now - last_seen > self.settings.stale_after
 
     def _record_sample(
         self,
@@ -230,3 +283,13 @@ class HealthMonitor:
             streak=streak,
             last_sample=sample_time,
         )
+
+
+def in_safe_mode(reading: OptimizerReading) -> bool:
+    """Return True if a reading shows the optimizer holding its 1 V output."""
+    return (
+        reading.optimizer_voltage is not None
+        and reading.voltage is not None
+        and reading.optimizer_voltage <= SAFE_MODE_MAX_OUTPUT_VOLTAGE
+        and reading.voltage >= SAFE_MODE_MIN_MODULE_VOLTAGE
+    )

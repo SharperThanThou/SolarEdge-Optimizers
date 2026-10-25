@@ -27,7 +27,7 @@ For each optimizer, as its own device under its inverter:
 | Power, Current | Reported as 0 once the latest sample is stale (e.g. at night). |
 | Module voltage, Optimizer voltage | Module (panel) side and optimizer output side. |
 | Last measurement | When the portal last received data for this optimizer. |
-| Health | `ok`, `low_output`, `no_output`, `not_reporting` or `unknown`. |
+| Health | `ok`, `low_output`, `no_output`, `not_reporting`, `safe_mode` or `unknown`. |
 | Output vs peers | Power as a % of the median of its peers. |
 | Problem (binary) | On while the health status is a problem. |
 
@@ -51,6 +51,15 @@ used instead.
 * **Not reporting**: no data for *not reporting after* (default 2 h) while the
   rest of the site is producing. The time is counted from when the site
   started producing, so last night's silence doesn't trigger it at sunrise.
+  An optimizer whose last report is more than 24 h older than the site's
+  newest report is flagged straight away, day or night, so long-dead
+  optimizers show up right after a restart.
+* **Safe mode**: the optimizer is holding its output at about 1 V while its
+  panel has voltage. SolarEdge optimizers do this until the inverter tells
+  them to produce, so it's normal at night but a fault while the rest of the
+  site is producing. It replaces no/low output or not reporting when the
+  latest reading shows it, because it points at the optimizer itself rather
+  than shading or a communication problem.
 * **Unknown**: not enough light to judge. Comparisons only happen once the
   peer median reaches *minimum peer power* (default 50 W), so dawn, dusk and
   heavy cloud stay quiet.

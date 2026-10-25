@@ -73,6 +73,7 @@
           "low_output": "Low output",
           "no_output": "No output",
           "not_reporting": "Not reporting",
+          "safe_mode": "Stuck in safe mode",
           "unknown": "Unknown"
         }
       },

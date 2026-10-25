@@ -15,7 +15,11 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.solaredge_optimizers.api import SourceAuthError, SourceError
+from custom_components.solaredge_optimizers.api import (
+    OptimizerReading,
+    SourceAuthError,
+    SourceError,
+)
 from custom_components.solaredge_optimizers.const import DOMAIN
 from custom_components.solaredge_optimizers.diagnostics import (
     async_get_config_entry_diagnostics,
@@ -159,3 +163,42 @@ async def test_diagnostics_redacts_credentials(
     assert diagnostics["entry"]["data"]["password"] == "**REDACTED**"
     assert diagnostics["entry"]["data"]["username"] == "**REDACTED**"
     assert len(diagnostics["readings"]) == 10
+
+
+async def test_disabled_device_is_ignored(
+    hass: HomeAssistant,
+    mock_source: AsyncMock,
+    config_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+    now: datetime,
+) -> None:
+    """A replaced optimizer the portal still lists can be silenced."""
+    freezer.move_to(now)
+    ghost = STRING_A[0]
+    readings = make_readings(now - timedelta(minutes=5))
+    readings[ghost] = OptimizerReading(
+        serial=ghost,
+        power=0.0,
+        voltage=44.0,
+        optimizer_voltage=1.0,
+        last_measurement=now - timedelta(days=30),
+    )
+    mock_source.async_get_readings.return_value = readings
+    await setup(hass, config_entry)
+
+    site = config_entry.unique_id
+    assert hass.states.get(entity_id(hass, site, "unhealthy_optimizers")).state == "1"
+    assert hass.states.get(entity_id(hass, ghost, "health")).state == "safe_mode"
+
+    devices = dr.async_get(hass)
+    device = devices.async_get_device(identifiers={(DOMAIN, ghost)})
+    devices.async_update_device(device.id, disabled_by=dr.DeviceEntryDisabler.USER)
+    await config_entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(entity_id(hass, site, "unhealthy_optimizers")).state == "0"
+    site_problem = hass.states.get(entity_id(hass, site, "any_optimizer_problem"))
+    assert site_problem.state == STATE_OFF
+    assert site_problem.attributes["unhealthy_optimizers"] == []
+    # It no longer counts as a peer either.
+    assert config_entry.runtime_data.data.health[STRING_A[1]].peer_count == 3

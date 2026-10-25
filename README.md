@@ -69,6 +69,15 @@ samples in a row agree, which filters out passing shadows. Re-polling the same
 sample doesn't count. One good sample clears a problem. All thresholds can be
 changed from the integration's **Configure** dialog.
 
+### Ignoring an optimizer
+
+When an optimizer is replaced, the portal sometimes keeps listing the old
+unit, which then reports a problem forever. To ignore it, open its device
+(**Settings → Devices & services → SolarEdge Optimizers**), choose **⋮ →
+Disable**. A disabled optimizer is left out of the health check and isn't
+used as anyone's peer. Enable it again to resume monitoring. The proper fix
+is still to ask your installer to remove the old unit from the site layout.
+
 Known limitation: panels in one string that face different directions, or
 that are regularly shaded by a tree or chimney, can look "low" against their
 peers. Raise the consecutive sample count or lower the threshold if that

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -109,8 +110,26 @@ class SolarEdgeOptimizersCoordinator(DataUpdateCoordinator[SiteData]):
             raise UpdateFailed(f"Error fetching optimizer data: {err}") from err
 
         now = dt_util.utcnow()
-        health = self.monitor.update(self.layout, readings, now)
+        health = self.monitor.update(self._monitored_layout(), readings, now)
         return SiteData(readings=readings, health=health, fetched_at=now)
+
+    def _monitored_layout(self) -> SiteLayout:
+        """Return the layout without optimizers whose device is disabled.
+
+        Disabling an optimizer's device is how a user says "ignore this one",
+        e.g. a replaced unit the portal still lists. Ignored optimizers are
+        neither assessed nor used as anyone's peer.
+        """
+        registry = dr.async_get(self.hass)
+        optimizers = {
+            serial: optimizer
+            for serial, optimizer in self.layout.optimizers.items()
+            if not (
+                (device := registry.async_get_device(identifiers={(DOMAIN, serial)}))
+                and device.disabled
+            )
+        }
+        return replace(self.layout, optimizers=optimizers)
 
     def is_stale(self, reading: OptimizerReading | None) -> bool:
         """Return True if a reading is too old to describe the present."""

@@ -113,5 +113,20 @@ pytest
 ruff check . && ruff format --check .
 ```
 
+### Checking against your own site
+
+`scripts/check_site.py` logs in with your portal credentials and prints the
+layout and readings exactly as the integration sees them, plus what one
+health check would conclude. It changes nothing on the portal.
+
+```bash
+python scripts/check_site.py SITE_ID you@example.com
+python scripts/check_site.py SITE_ID you@example.com --dump equipment.json
+```
+
+`--dump` saves the raw layout JSON, which is the thing to attach to an issue
+if optimizers end up in the wrong string. Serial numbers are included, so
+review it before sharing.
+
 The health logic (`health.py`) and the data models (`api/models.py`) don't
 depend on Home Assistant, so they're easy to test on their own.

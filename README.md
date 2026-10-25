@@ -149,3 +149,53 @@ review it before sharing.
 
 The health logic (`health.py`) and the data models (`api/models.py`) don't
 depend on Home Assistant, so they're easy to test on their own.
+
+## Security
+
+A security review of this integration and its `solaredge-web` dependency
+(version 0.5.0) was done on 2026-10-24. No serious issues were found. The
+known risks below were judged low and accepted as they are.
+
+### What was checked
+
+- **Login.** `solaredge-web` uses the same OAuth (PKCE) login as SolarEdge's
+  web app. It only sends credentials to, and only accepts login codes from,
+  `solaredge.com` hosts, and it leaves TLS certificate checks on.
+- **Logging.** Neither this integration nor `solaredge-web` logs passwords,
+  tokens or cookies, including at debug level. Logs show URLs and status codes.
+- **Session isolation.** The portal login lives in a cookie jar of its own,
+  separate from Home Assistant's shared HTTP session.
+- **Diagnostics.** Downloaded diagnostics redact the username and password.
+- **Known vulnerabilities.** `solaredge-web` 0.5.0 had no published advisories
+  (checked with `pip-audit`).
+
+### Known risks
+
+- **Credentials at rest.** Like every Home Assistant integration, the portal
+  email and password are stored unencrypted in
+  `.storage/core.config_entries`. Treat Home Assistant backups as sensitive.
+- **Unpinned dependency.** The manifest requires `solaredge-web>=0.5.0`, so a
+  new install gets the latest release. A compromised future release would be
+  installed automatically. Pinning an exact version would prevent that, but
+  it could conflict with Home Assistant's built-in SolarEdge integration,
+  which pins its own version.
+- **Site ID isn't validated.** The site ID is placed in request URLs as typed.
+  Only the account owner enters it, under their own login, so it can't be
+  used to reach anyone else's data.
+- **No HTTPS check on the login form.** `solaredge-web` checks that the login
+  form posts to a `solaredge.com` host but not that it uses HTTPS. A
+  password would only be sent unencrypted if SolarEdge's own login page
+  pointed at an `http://` address.
+- **CI actions aren't pinned.** The hassfest and HACS workflows use the
+  `@master` and `@main` tags of those actions. The workflows have read-only
+  permissions and no secrets.
+- **Diagnostics include identifiers.** The site ID and optimizer serial
+  numbers aren't redacted. Neither grants access without the password, but
+  review a diagnostics file before posting it publicly. The same applies to
+  `scripts/check_site.py --dump` output.
+
+### Reporting a vulnerability
+
+Please report security problems privately through GitHub's
+[security advisories](https://github.com/SharperThanThou/SolarEdge-Optimizers/security/advisories/new)
+rather than in a public issue.

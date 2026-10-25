@@ -107,7 +107,8 @@ site ID is shown in the portal's site details.
 ## Development
 
 ```bash
-python -m venv .venv && . .venv/bin/activate
+# Python 3.13 or newer, same as Home Assistant.
+python3.13 -m venv .venv && . .venv/bin/activate
 pip install -r requirements_test.txt
 pytest
 ruff check . && ruff format --check .

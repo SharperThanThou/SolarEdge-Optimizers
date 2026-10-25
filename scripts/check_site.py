@@ -11,6 +11,14 @@ The password is prompted for, or read from SOLAREDGE_PASSWORD.
 
 from __future__ import annotations
 
+import sys
+
+if sys.version_info < (3, 13):
+    sys.exit(
+        f"Python 3.13 or newer is required (this is {sys.version.split()[0]})."
+        " See the Development section of the README."
+    )
+
 import argparse
 import asyncio
 from dataclasses import asdict
@@ -19,7 +27,6 @@ import getpass
 import json
 import os
 from pathlib import Path
-import sys
 
 import aiohttp
 

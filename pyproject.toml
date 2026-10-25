@@ -18,6 +18,7 @@ select = ["B", "E", "F", "I", "UP", "SIM", "RUF", "PL", "S", "D"]
 ignore = ["D203", "D213", "E501", "PLR0913", "PLR2004", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
+"scripts/**" = ["E402", "UP036"]
 "tests/**" = ["S101", "S105", "S106", "D", "PLR2004"]
 
 [tool.ruff.lint.isort]

@@ -1,0 +1,22 @@
+{
+  "entity": {
+    "sensor": {
+      "health": {
+        "default": "mdi:heart-pulse",
+        "state": {
+          "ok": "mdi:check-circle-outline",
+          "low_output": "mdi:solar-power-variant-outline",
+          "no_output": "mdi:power-plug-off-outline",
+          "not_reporting": "mdi:access-point-network-off",
+          "safe_mode": "mdi:shield-alert-outline"
+        }
+      },
+      "peer_ratio": {
+        "default": "mdi:scale-balance"
+      },
+      "unhealthy_optimizers": {
+        "default": "mdi:solar-panel"
+      }
+    }
+  }
+}

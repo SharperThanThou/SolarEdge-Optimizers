@@ -1,0 +1,13 @@
+{
+  "domain": "solaredge_optimizers",
+  "name": "SolarEdge Optimizers",
+  "codeowners": ["@SharperThanThou"],
+  "config_flow": true,
+  "documentation": "https://github.com/SharperThanThou/SolarEdge-Optimizers",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/SharperThanThou/SolarEdge-Optimizers/issues",
+  "loggers": ["solaredge_web"],
+  "requirements": ["solaredge-web>=0.5.0"],
+  "version": "0.1.0"
+}

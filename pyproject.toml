@@ -3,6 +3,7 @@ name = "solaredge-optimizers"
 version = "0.1.0"
 description = "Home Assistant integration for per-optimizer SolarEdge data and health"
 requires-python = ">=3.13"
+license = "Apache-2.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

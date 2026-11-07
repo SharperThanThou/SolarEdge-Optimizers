@@ -199,3 +199,7 @@ known risks below were judged low and accepted as they are.
 Please report security problems privately through GitHub's
 [security advisories](https://github.com/SharperThanThou/SolarEdge-Optimizers/security/advisories/new)
 rather than in a public issue.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

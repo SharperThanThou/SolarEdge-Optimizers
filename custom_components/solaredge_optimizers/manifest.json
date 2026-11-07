@@ -1,6 +1,7 @@
 {
   "domain": "solaredge_optimizers",
   "name": "SolarEdge Optimizers",
+  "categories": ["energy.solar_batteries"],
   "codeowners": ["@SharperThanThou"],
   "config_flow": true,
   "documentation": "https://github.com/SharperThanThou/SolarEdge-Optimizers",

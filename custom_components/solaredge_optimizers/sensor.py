@@ -22,9 +22,9 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .api import Optimizer, OptimizerReading
+from .api import Inverter, Optimizer, OptimizerReading
 from .coordinator import SolarEdgeOptimizersConfigEntry, SolarEdgeOptimizersCoordinator
-from .entity import OptimizerEntity, SiteEntity
+from .entity import InverterEntity, OptimizerEntity, SiteEntity
 from .health import HealthStatus, OptimizerHealth
 
 # Entities only read coordinator data.
@@ -101,6 +101,11 @@ async def async_setup_entry(
         UnhealthyCountSensor(coordinator),
         LatestMeasurementSensor(coordinator),
     ]
+    entities.extend(
+        InverterMaxPowerSensor(coordinator, inverter)
+        for inverter in coordinator.layout.inverters.values()
+        if inverter.max_power is not None
+    )
     for optimizer in coordinator.layout.optimizers.values():
         entities.extend(
             ReadingSensor(coordinator, optimizer, description)
@@ -167,6 +172,9 @@ class HealthStatusSensor(OptimizerEntity, SensorEntity):
             "peer_median_power": health.peer_median,
             "peer_count": health.peer_count,
             "string": self.optimizer.string_name,
+            "panel_model": self.optimizer.panel_model,
+            "panel_power": self.optimizer.panel_power,
+            "panels": self.optimizer.panels,
         }
 
 
@@ -207,6 +215,27 @@ class UnhealthyCountSensor(SiteEntity, SensorEntity):
     def native_value(self) -> int:
         """Return the number of optimizers with a problem."""
         return sum(health.problem for health in self.coordinator.data.health.values())
+
+
+class InverterMaxPowerSensor(InverterEntity, SensorEntity):
+    """The most AC power the inverter will deliver, from the site layout.
+
+    Panels can be rated for more than their inverter, so this caps what the
+    site can produce at once.
+    """
+
+    _attr_translation_key = "max_ac_power"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self, coordinator: SolarEdgeOptimizersCoordinator, inverter: Inverter
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, inverter, "max_ac_power")
+        self._attr_native_value = inverter.max_power
 
 
 class LatestMeasurementSensor(SiteEntity, SensorEntity):

@@ -18,6 +18,8 @@ class Inverter:
     serial: str
     name: str
     model: str | None = None
+    # The most AC power the inverter will deliver, in W.
+    max_power: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +27,9 @@ class Optimizer:
     """An optimizer in the site layout.
 
     ``string_id`` groups optimizers wired in series. It is ``None`` when the
-    layout does not place the optimizer in a string.
+    layout does not place the optimizer in a string. ``panel_power`` is the
+    rated power of one panel in W, and ``panels`` how many panels the
+    optimizer serves.
     """
 
     serial: str
@@ -33,6 +37,9 @@ class Optimizer:
     inverter_serial: str | None
     string_id: str | None
     string_name: str | None = None
+    panel_model: str | None = None
+    panel_power: float | None = None
+    panels: int = 1
 
 
 @dataclass(frozen=True, slots=True)

@@ -16,6 +16,9 @@
       },
       "unhealthy_optimizers": {
         "default": "mdi:solar-panel"
+      },
+      "max_ac_power": {
+        "default": "mdi:sine-wave"
       }
     }
   }

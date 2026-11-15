@@ -85,6 +85,9 @@
       },
       "latest_measurement": {
         "name": "Latest optimizer measurement"
+      },
+      "max_ac_power": {
+        "name": "Maximum AC power"
       }
     }
   }

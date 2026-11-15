@@ -39,12 +39,16 @@ def make_layout() -> SiteLayout:
                 inverter_serial=INVERTER,
                 string_id=f"{INVERTER}_{string_no}",
                 string_name=f"String 1.{string_no}",
+                panel_model="Silfab SLA-M 320",
+                panel_power=320.0,
             )
     return SiteLayout(
         site_id=SITE_ID,
         name=f"SolarEdge site {SITE_ID}",
         inverters={
-            INVERTER: Inverter(serial=INVERTER, name="Inverter 1", model="SE7600H")
+            INVERTER: Inverter(
+                serial=INVERTER, name="Inverter 1", model="SE7600H", max_power=7600.0
+            )
         },
         optimizers=optimizers,
     )

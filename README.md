@@ -27,9 +27,15 @@ For each optimizer, as its own device under its inverter:
 | Power, Current | Reported as 0 once the latest sample is stale (e.g. at night). |
 | Module voltage, Optimizer voltage | Module (panel) side and optimizer output side. |
 | Last measurement | When the portal last received data for this optimizer. |
-| Health | `ok`, `low_output`, `no_output`, `not_reporting`, `safe_mode` or `unknown`. |
+| Health | `ok`, `low_output`, `no_output`, `not_reporting`, `safe_mode` or `unknown`. Its attributes include the optimizer's `string`, and its panel's `panel_model`, `panel_power` (rated W) and `panels` (how many panels it serves), as listed in the portal. |
 | Output vs peers | Power as a % of the median of its peers. |
 | Problem (binary) | On while the health status is a problem. |
+
+For each inverter:
+
+| Entity | Notes |
+| --- | --- |
+| Maximum AC power | The most AC power the inverter delivers, from the portal (diagnostic). Panels are often rated for more than this, so it caps what the site produces at once. |
 
 For the site:
 

@@ -64,6 +64,12 @@ async def test_setup_creates_entities(
     assert hass.states.get(entity_id(hass, serial, "health")).state == "ok"
     assert hass.states.get(entity_id(hass, serial, "peer_ratio")).state == "100.0"
     assert hass.states.get(entity_id(hass, serial, "problem")).state == STATE_OFF
+    health = hass.states.get(entity_id(hass, serial, "health"))
+    assert health.attributes["string"] == "String 1.1"
+    assert health.attributes["panel_model"] == "Silfab SLA-M 320"
+    assert health.attributes["panel_power"] == 320.0
+    assert health.attributes["panels"] == 1
+    assert hass.states.get(entity_id(hass, INVERTER, "max_ac_power")).state == "7600.0"
 
     site = config_entry.unique_id
     assert hass.states.get(entity_id(hass, site, "unhealthy_optimizers")).state == "0"

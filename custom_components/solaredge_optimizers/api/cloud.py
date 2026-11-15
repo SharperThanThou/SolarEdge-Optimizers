@@ -9,6 +9,7 @@ endpoints are undocumented and may change without notice.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterator
+import re
 from typing import Any, TypeVar
 
 import aiohttp
@@ -20,6 +21,9 @@ from .models import Inverter, Optimizer, OptimizerReading, SiteLayout
 _T = TypeVar("_T")
 
 _AUTH_STATUSES = (401, 403)
+
+# Panel ratings that are plausible for one module, in W.
+_PANEL_POWER_RANGE = (150, 900)
 
 
 class CloudSource:
@@ -88,10 +92,12 @@ def parse_layout(site_id: str, equipment: dict[str, dict[str, Any]]) -> SiteLayo
         if node.get("type") != "INVERTER" or not node.get("serial"):
             continue
         serial = node["serial"]
+        properties = node.get("properties") or {}
         inverters[serial] = Inverter(
             serial=serial,
             name=node.get("name") or f"Inverter {serial}",
-            model=(node.get("properties") or {}).get("model"),
+            model=properties.get("model"),
+            max_power=_positive_float(properties.get("maxActivePower")),
         )
         for opt_node, string_node in _walk_optimizers(node, None):
             opt = _make_optimizer(opt_node, serial, string_node)
@@ -134,7 +140,8 @@ def _make_optimizer(
 ) -> Optimizer | None:
     """Build an optimizer from a layout node, skipping retired units."""
     serial = node.get("serial")
-    if not serial or (node.get("properties") or {}).get("status") == "INACTIVE":
+    properties = node.get("properties") or {}
+    if not serial or properties.get("status") == "INACTIVE":
         return None
     string_id: str | None = None
     string_name: str | None = None
@@ -151,4 +158,44 @@ def _make_optimizer(
         inverter_serial=inverter_serial,
         string_id=string_id,
         string_name=string_name,
+        panel_model=_panel_model(properties),
+        panel_power=panel_power_from_model(properties.get("panelModelName")),
+        panels=_panels_count(properties.get("panelsCount")),
     )
+
+
+def _panel_model(properties: dict[str, Any]) -> str | None:
+    """Return the panel's manufacturer and model, as far as they're known."""
+    parts = [properties.get("panelManufacturerName"), properties.get("panelModelName")]
+    return " ".join(str(part) for part in parts if part) or None
+
+
+def panel_power_from_model(model: object) -> float | None:
+    """Read a panel's rated power from its model name, e.g. "SLA-M 320" -> 320.
+
+    Panel model names nearly always include the rating, but alongside other
+    numbers (cell counts, series), so take the largest plausible one.
+    """
+    if not isinstance(model, str):
+        return None
+    low, high = _PANEL_POWER_RANGE
+    candidates = [int(n) for n in re.findall(r"\d+", model) if low <= int(n) <= high]
+    return float(max(candidates)) if candidates else None
+
+
+def _panels_count(value: object) -> int:
+    """Return how many panels an optimizer serves; the portal omits 1."""
+    try:
+        count = int(value)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return 1
+    return count if count > 0 else 1
+
+
+def _positive_float(value: object) -> float | None:
+    """Return ``value`` as a positive float, or None."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
